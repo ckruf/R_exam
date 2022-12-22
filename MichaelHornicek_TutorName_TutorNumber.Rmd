@@ -1,0 +1,261 @@
+---
+title: "Knowledge Discovery and Data Visualization Exam"
+author: "Michael Hornicek"
+date: "2022-12-22"
+output: html_document
+---
+
+```{r setup}
+knitr::opts_chunk$set(cache =TRUE)
+```
+
+## Question 1
+
+Open data set and generate random subset of 480 observations
+
+```{r}
+# read file
+housing <- read.csv(
+  file="./housing.csv",
+  sep = ";",
+  header = FALSE,
+  col.names = c("CRIM", "ZN", "INDUS", "CHAS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV")
+)
+
+# get random subset
+set.seed(0)
+index <- sample(1:nrow(housing), 480)
+housing_subset <- housing[index, ]
+summary(housing_subset)
+```
+
+## Question 2
+
+### Pre-processing
+
+To start pre-processing, first check if there are any missing values.
+
+```{r}
+# check for NA values
+na_count <- sapply(housing_subset, function(value) sum(length(which(is.na(value)))))
+na_count <- data.frame(na_count)
+na_count
+```
+
+There are no missing values.
+
+### Outliers
+
+Next, let's try to find outliers. In order to find outliers, and simultaneously gain some insight into the distribution of values, 
+a histogram can be plotted. I plotted histograms for each variable using both the 
+original values, and Z-score standardized values. 
+
+#### CRIM
+
+The first variable, CRIM, which is the per capita crime rate of the town/sub-urb,
+does have outliers. These are the histograms, using both the raw values, and the z-score standardized values:
+
+```{r}
+# CRIME histogram
+par(mfrow=c(1, 2))
+hist(housing_subset$CRIM,
+     col="blue",
+     border="black",
+     xlab="Per capita crime rate",
+     ylab="counts",
+     main="Crime rate per cap. hist.")
+box(which="plot", lty="solid", col="black")
+
+z_score_CRIM <- ((housing_subset$CRIM-mean(housing_subset$CRIM))/sd(housing_subset$CRIM))
+
+hist(z_score_CRIM,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-2, 12),
+     ylim = c(0, 100),
+     xlab="Z-standardized per capita crime rate",
+     ylab="count",
+     main="Z-stand. crime rate per cap. hist.")
+axis(side=1)
+box(which="plot", lty="solid", col="black")
+```
+
+And if we want to have a look at the rows producing these outliers:
+
+```{r}
+housing_subset$CRIM_z <- ((housing_subset$CRIM-mean(housing_subset$CRIM))/sd(housing_subset$CRIM))
+
+
+outliers <- housing_subset[housing_subset$CRIM_z > 3, ]
+outliers
+nrow(outliers)
+```
+
+And for a summary of the z-score for the CRIM variable:
+
+```{r}
+summary(housing_subset$CRIM_z)
+```
+
+There are values with extremely high z-scores, considering that an outlier is considered to be any variable with a z-score greater than 3 (or less than -3), and
+here we have a value of 9.73, and two more values of 7.969 and 7.329. However,
+I don't know enough about the meaning of the CRIM variable (for example what its units are), to be able to say whether these values are so extreme that they must not be correct, or whether it is possible that they are correct.
+
+#### ZN
+
+The ZN variable, which is the proportion of residental land zoned for lots over 25000 sq ft also has outliers:
+
+```{r}
+par(mfrow=c(1, 2))
+hist(housing_subset$ZN,
+     col="blue",
+     border="black",
+     xlab="Prop. of res. land zoned for lots >25k sq ft",
+     ylab="counts",
+     main="Hist. of residential land zoning")
+box(which="plot", lty="solid", col="black")
+
+housing_subset$ZN_z <- ((housing_subset$ZN-mean(housing_subset$ZN))/sd(housing_subset$ZN))
+
+hist(housing_subset$ZN_z,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-6, 6),
+     xlab="Z-score prop. of res. land zoned for lots >25k sq ft",
+     ylab="count",
+     main="Hist. of z-score residential land zoning")
+box(which="plot", lty="solid", col="black")
+```
+
+These are the records:
+
+```{r}
+housing_subset[housing_subset$ZN_z > 3, ]
+
+nrow(housing_subset[housing_subset$ZN_z > 3, ])
+```
+
+While there are more outliers here compared to CRIM (13 here vs 8 for CRIM), their 
+values are nowhere near as extreme, with the most extreme outlier having a z-score
+of 3.80.
+
+#### RM
+
+The next variable containing outliers (as classified using z-score) is RM, which is the average number of rooms per house.
+
+```{r}
+par(mfrow=c(1, 2))
+hist(housing_subset$RM,
+     col="blue",
+     border="black",
+     xlab="Avg number of rooms",
+     ylab="counts",
+     main="Hist. avg no. of rooms")
+box(which="plot", lty="solid", col="black")
+
+housing_subset$RM_z <- ((housing_subset$RM-mean(housing_subset$RM))/sd(housing_subset$RM))
+
+hist(housing_subset$RM_z,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-6, 6),
+     xlab="Hist. z-score avg. no. of rooms",
+     ylab="counts",
+     main="Hist. z-score avg. no. of rooms")
+box(which="plot", lty="solid", col="black")
+```
+
+There are 8 outliers, which is a similar amount to other quantities. Their values are not very extreme either, with the greatest outlier having a z-score of -3.88.
+
+```{r}
+outliers <- housing_subset[housing_subset$RM_z > 3 | housing_subset$RM_z < -3, ]
+
+nrow(outliers)
+
+summary(housing_subset$RM_z)
+```
+
+#### DIS
+
+The next variable with outliers is the DIS variable, representing the weighted distances to 5 Boston employment centers.
+
+```{r}
+par(mfrow=c(1, 2))
+hist(housing_subset$DIS,
+     col="blue",
+     border="black",
+     xlab="Distance from empl. centres",
+     ylab="counts",
+     main="Hist. of distance from empl. centres")
+box(which="plot", lty="solid", col="black")
+
+housing_subset$DIS_z <- ((housing_subset$DIS-mean(housing_subset$DIS))/sd(housing_subset$DIS))
+
+hist(housing_subset$DIS_z,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-6, 6),
+     xlab="Z-score distance from empl. centres",
+     ylab="counts",
+     main="Hist. of distance from empl. centres")
+box(which="plot", lty="solid", col="black")
+```
+
+The records:
+
+```{r}
+housing_subset[housing_subset$DIS_z > 3, ]
+
+nrow(housing_subset[housing_subset$DIS_z > 3, ])
+
+summary(housing_subset$DIS_z)
+```
+
+Compared to other variables, DIS has 5 outliers, which is relatively few. Their values are also not particularly extreme, with the greatest outlier having a z-score of 3.91.
+
+#### B
+
+The next variable with outliers is the B variable, which is linked to the proportion of the black population in the town.
+
+```{r}
+par(mfrow=c(1, 2))
+hist(housing_subset$B,
+     col="blue",
+     border="black",
+     xlab="Proportion of blacks",
+     ylab="counts",
+     main="Histogram of proportion of blacks")
+box(which="plot", lty="solid", col="black")
+
+housing_subset$B_z <- ((housing_subset$B-mean(housing_subset$B))/sd(housing_subset$B))
+
+hist(housing_subset$B_z,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-6, 6),
+     xlab="Z-standardized proportion of blacks",
+     ylab="counts",
+     main="Histogram of z-standardized proportion of blacks")
+box(which="plot", lty="solid", col="black")
+```
+
+These are the records:
+
+```{r}
+housing_subset[housing_subset$B_z < -3, ]
+
+nrow(housing_subset[housing_subset$B_z < -3, ])
+
+summary(housing_subset$B_z)
+```
+
+Unlike for other variables, this one has outliers mainly to the left of the center.
+There are also relatively many, at 23. Though their values are not very extreme, with the most extreme having a z-score of -3.87.
+
+
+
