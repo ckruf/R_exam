@@ -546,5 +546,35 @@ summary(fit)
 summary(housing_subset$MEDV)
 find_mode(housing_subset$MEDV)
 
-housing_subset()
+# Collect variables of interest
+corrdata <- cbind(housing_subset$CRIM,
+                  housing_subset$ZN,
+                  housing_subset$INDUS,
+                  housing_subset$NOX,
+                  housing_subset$RM,
+                  housing_subset$AGE,
+                  housing_subset$DIS,
+                  housing_subset$RAD,
+                  housing_subset$TAX,
+                  housing_subset$PTRATIO,
+                  housing_subset$B,
+                  housing_subset$LSTAT,
+                  housing_subset$MEDV)
+# Declare the matrix
+corrpvalues <- matrix(rep(0, 169),
+                      ncol = 13)
+# Fill the matrix with correlations
+for (i in 1:12) {
+  for (j in (i+1):13) {
+    corrpvalues[i,j] <- corrpvalues[j,i] <-
+      round(cor.test(corrdata[,i],
+                     corrdata[,j])$p.value,
+            4)
+  }
+}
+
+correlations <- round(cor(corrdata), 4)
+colnames(correlations) <- c("CRIM", "ZN", "INDUS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV")
+rownames(correlations) <- c("CRIM", "ZN", "INDUS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV")
+correlations
 

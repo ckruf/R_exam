@@ -226,9 +226,9 @@ par(mfrow=c(1, 2))
 hist(housing_subset$B,
      col="blue",
      border="black",
-     xlab="Proportion of blacks",
+     xlab="1000(Bk - 0.63)^2",
      ylab="counts",
-     main="Histogram of proportion of blacks")
+     main="Hist. of 1000(Bk - 0.63)^2")
 box(which="plot", lty="solid", col="black")
 
 housing_subset$B_z <- ((housing_subset$B-mean(housing_subset$B))/sd(housing_subset$B))
@@ -238,9 +238,9 @@ hist(housing_subset$B_z,
      col="blue",
      border="black",
      xlim = c(-6, 6),
-     xlab="Z-standardized proportion of blacks",
+     xlab="Z-score 1000(Bk - 0.63)^2",
      ylab="counts",
-     main="Histogram of z-standardized proportion of blacks")
+     main="Hist. of z-score 1000(Bk - 0.63)^2")
 box(which="plot", lty="solid", col="black")
 ```
 
@@ -258,4 +258,182 @@ Unlike for other variables, this one has outliers mainly to the left of the cent
 There are also relatively many, at 23. Though their values are not very extreme, with the most extreme having a z-score of -3.87.
 
 
+#### LSTAT
 
+The next variable with outliers is the LSTAT variable, representing the % of lower status of the population.
+
+```{r}
+# LSTAT histogram
+par(mfrow=c(1, 2))
+hist(housing_subset$LSTAT,
+     col="blue",
+     border="black",
+     xlab="Proportion of lower status",
+     ylab="counts",
+     main="Hist. of prop. of lower status")
+box(which="plot", lty="solid", col="black")
+
+housing_subset$LSTAT_z <- ((housing_subset$LSTAT-mean(housing_subset$LSTAT))/sd(housing_subset$LSTAT))
+
+hist(housing_subset$LSTAT_z,
+     breaks=10,
+     col="blue",
+     border="black",
+     xlim = c(-6, 6),
+     xlab="Z-standardized proportion of lower status",
+     ylab="counts",
+     main="Hist. of z-score prop. of lower status")
+box(which="plot", lty="solid", col="black")
+```
+
+These are the records:
+
+```{r}
+
+housing_subset[housing_subset$LSTAT_z > 3, ]
+nrow(housing_subset[housing_subset$LSTAT_z > 3, ])
+summary(housing_subset$LSTAT_z)
+```
+
+This variable also has relatively few outliers with not very extreme, with the most extreme having a z-score of 3.54.
+
+### Correlations analysis of numeric variables
+
+Below are  correlation coefficients between all the numeric variables and the target variable:
+
+```{r}
+# Collect variables of interest
+corrdata <- cbind(housing_subset$CRIM,
+                  housing_subset$ZN,
+                  housing_subset$INDUS,
+                  housing_subset$NOX,
+                  housing_subset$RM,
+                  housing_subset$AGE,
+                  housing_subset$DIS,
+                  housing_subset$RAD,
+                  housing_subset$TAX,
+                  housing_subset$PTRATIO,
+                  housing_subset$B,
+                  housing_subset$LSTAT,
+                  housing_subset$MEDV)
+# Declare the matrix
+corrpvalues <- matrix(rep(0, 169),
+                      ncol = 13)
+# Fill the matrix with correlations
+for (i in 1:12) {
+  for (j in (i+1):13) {
+    corrpvalues[i,j] <- corrpvalues[j,i] <-
+      round(cor.test(corrdata[,i],
+                     corrdata[,j])$p.value,
+            4)
+  }
+}
+
+correlations <- round(cor(corrdata), 4)
+colnames(correlations) <- c("CRIM", "ZN", "INDUS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV")
+rownames(correlations) <- c("CRIM", "ZN", "INDUS", "NOX", "RM", "AGE", "DIS", "RAD", "TAX", "PTRATIO", "B", "LSTAT", "MEDV")
+correlations
+```
+
+### Frequency tables for categorical variables
+
+Below is a frequency table for the only categorical variable in the data set, CHAS, which indicates whether the neighborhood is by the river or not. In order to create a frequency table and correlate the categorical variable CHAS with the numeric target variable, I decided to use equal binning of the variable. Note that bin 0 is the most expensive houses and bin 4 the cheapest.
+
+```{r}
+# bin house values - equal binning
+
+xdata <- housing_subset$MEDV
+n <- length(xdata)
+nbins <- 4
+whichbin <- c(rep(0, n))
+range_xdata <- max(xdata) - min(xdata) + 1
+binwidth <- range_xdata/nbins
+for (i in 1:nbins) {
+  for (j in 1:n) {
+    if((i-1)*binwidth < xdata[j] &&
+       xdata[j] <= (i)*binwidth)
+      whichbin[j] <- i
+  }
+}
+
+housing_subset$MEDV_bin <- whichbin
+
+table(housing_subset$MEDV_bin, housing_subset$CHAS, dnn=c("MEDV bin", "CHAS"))
+```
+
+### Analysis / interesting relationships
+
+#### Crime and median house value
+
+In terms of interesting relationships between the target variable and other variables, in my opinion, the relationships where there was a low correlation were more interesting. The strongest correlations occurred for variables which I would expect to be strongly correlated, such as the average number of rooms per dwelling and the percentage of lower status of the population. It seems quite obvious that those would be correlated with the median house value.
+
+On the other hand, I was surprised that crime had one of the lowest correlation coefficients (-0.3868). This is what the scatter plot looks like:
+
+```{r}
+plot(housing_subset$MEDV, housing_subset$CRIM,
+     xlab = "Median house value $1000s",
+     ylab = "Per capita crime rate",
+     main = "Scatter plot of crime rate against median house value",
+     type = "p",
+     pch = 16,
+     col = "blue")
+```
+
+For lower median house values (circa below 30k), the scatter plot looks like what I would expect, as the median house value increases, the crime rate decreases. After 30k, the crime rate remains stable, which also makes sense, because it is quite close to 0, and it can't go lower. Unexpectedly, at 50k, there are some suburbs with higher than expected crime rates.
+
+```{r}
+most_expensive <- housing_subset[housing_subset$MEDV > 49, ]
+most_expensive_sorted <- most_expensive[order(most_expensive$CRIM), ]
+most_expensive_sorted
+```
+
+When we look at the data for those houses, sorted by crime, a trend emerges. For these most expensive houses, there seems to be a very strong correlation between CRIM and DIS. The neighborhoods which have expensive houses and relatively higher crime, they very low distance to employment centres. This kind of makes sense - those properties tend to be expensive, and the people living there might be willing to accept higher levels of crime in exchange for being very close to the center.
+
+```{r}
+fit <- lm(most_expensive$CRIM ~ most_expensive$DIS)
+summary(fit)
+```
+
+```{r}
+fit <- lm(housing_subset$CRIM ~ housing_subset$DIS)
+summary(fit)
+```
+
+As we can see, this correlation seems to be unique to these expensive properties, and explains part of the reason why the correlation between crime and house values is not as high as I would have expected.
+
+#### Distance and median house value
+
+Another interesting relationship, kind of related to the previous one, is between the distance to employment centres and median house values. This one actually has the lowest correlation to median house values, which I was also surprised by. Here is the scatter plot:
+
+```{r}
+plot(housing_subset$MEDV, housing_subset$DIS,
+     xlab = "Median house value $1000s",
+     ylab = "Distance from empl. centres",
+     main = "Scatterplot of DIS against median house value",
+     type = "p",
+     pch = 16,
+     col = "blue")
+```
+
+Describing the trend in the scatter plot has some similarities with the crime rate trend. Up until a median house value of about 30k, there is a relatively strong correlation between distance from employment centres and the median house value. This is actually opposite of what I expected, I would expect prices to decreases as one gets further away from the center. And then after the price surpasses about 30k, the trend kind of reverses - as price increases, distance decreases. 
+
+This suggests that sub-urban areas, which are further away from the centre ten to be quite middle class (since houses of average value tend to be found there). On the other hand, areas close to the center of town seem to be either very rich, or very poor. 
+
+#### Nitrous oxide pollution and median house value
+
+The relationship between nitric oxides and median house value also seems to be in line with the hypothesis that the sub-urban areas, further away from the center tend to be middle class and the center has relatively poor and relatively rich people living there. Again, the NOX variable has a relatively low correlation to the median house value. Here is the scatter plot:
+
+```{r}
+plot(housing_subset$MEDV, housing_subset$NOX,
+     xlab = "Median house value",
+     ylab = "Nitric oxide concentration",
+     main = "Scatterplot of NOX against median house value",
+     type = "p",
+     pch = 16,
+     col = "blue")
+```
+
+Like with crime, the scatter has kind of a U shape, where the neighborhoods with the lowest house values and those with the highest house values both tned to have relatively high concentration of polluting nitrous oxides. On the other hand, the more average neighborhoods (in terms of their median house value) tend to have lower nitrous oxide pollution.
+
+
+### Question 3
