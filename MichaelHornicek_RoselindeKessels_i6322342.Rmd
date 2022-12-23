@@ -2,6 +2,8 @@
 title: "Knowledge Discovery and Data Visualization Exam"
 author: "Michael Hornicek"
 date: "2022-12-22"
+tutor_name: "Roselinde Kessels"
+tutor_number: "i6322342"
 output: html_document
 ---
 
@@ -437,3 +439,107 @@ Like with crime, the scatter has kind of a U shape, where the neighborhoods with
 
 
 ### Question 3
+
+#### Partition into training and testing
+
+```{r}
+housing_subset$part <- runif(nrow(housing_subset), min=0, max=1)
+training <- housing_subset[housing_subset$part <=0.75, ]
+testing <- housing_subset[housing_subset$part > 0.75, ]
+```
+
+#### Validate partition
+
+```{r}
+testing_sample_mean <- mean(testing$MEDV)
+training_sample_mean <- mean(training$MEDV)
+
+testing_sample_mean; training_sample_mean
+
+testing_sample_size <- nrow(testing)
+training_sample_size <- nrow(training)
+
+testing_sample_sd <- sd(testing$MEDV)
+training_sample_sd <- sd(training$MEDV)
+
+dfs <- min(testing_sample_size, training_sample_size)
+
+t_data <- (testing_sample_mean - training_sample_mean) / sqrt((training_sample_sd^2 / training_sample_size) + (testing_sample_mean^2 / testing_sample_size))
+
+p_value <- 2*pt(t_data, df=dfs, lower.tail=FALSE)
+
+t_data;p_value
+```
+
+Since the predictive variable is numeric, we use the two-sample t-Test for difference in means between the training sample mean and the testing sample mean. In this case, the p value is large, so there is no evidence that the average median house value differs between the training data and the test data set. 
+#### Data mining models
+
+##### KNN
+
+```{r}
+library(class)
+
+testing$MEDV_bin_pred_knn <- knn(training, testing, cl=training$MEDV_bin, k=5, prob=TRUE)
+
+head(testing)
+
+cm = as.matrix(table(Actual = testing$MEDV_bin, Predicted = testing$MEDV_bin_pred_knn))
+
+sum(diag(cm))/length(training$MEDV_bin)
+```
+
+First, I decided to use a K nearest neighbour data mining model. I used the same binning of the target variable, as in question 2, ie 5 equal bin. The model then uses the the other variables in the model in order to predict which bin the neighborhood would go into. I decided to use the z-normalized version of the variables, in order to normalize the distances of the variables that the kNN algorithm uses.
+
+I use a confusion matrix in order to evaluate the model. The overall error rate is 0.199. I optimized k to 5, such that the error rate would decrease to this level.
+
+##### CART
+
+```{r}
+library("rpart"); library("rpart.plot")
+
+# normalize values
+
+testing$INDUS_z <- ((testing$INDUS-mean(testing$INDUS))/sd(testing$INDUS))
+
+testing$NOX_z <- ((testing$NOX-mean(testing$NOX))/sd(testing$NOX))
+
+testing$AGE_z <- ((testing$AGE-mean(testing$AGE))/sd(testing$AGE))
+
+testing$TAX_z  <- ((testing$TAX-mean(testing$TAX))/sd(testing$TAX))
+
+# bin MEDV into two values:
+
+xdata <- testing$MEDV
+n <- length(xdata)
+nbins <- 2
+whichbin <- c(rep(0, n))
+range_xdata <- max(xdata) - min(xdata) + 1
+binwidth <- range_xdata/nbins
+for (i in 1:nbins) {
+  for (j in 1:n) {
+    if((i-1)*binwidth < xdata[j] &&
+       xdata[j] <= (i)*binwidth)
+      whichbin[j] <- i
+  }
+}
+
+testing$MEDV_expensive <- whichbin
+
+
+
+cartfit <- rpart(testing$MEDV_expensive ~ testing$CRIM_z + testing$ZN_z + testing$INDUS_z + testing$NOX_z + testing$AGE_z + testing$DIS_z + testing$TAX_z, data=testing, method="class")
+
+rpart.plot(cartfit)
+```
+
+The second data mining model I used is the CART model. I first normalized the variables, which must be done when using the CART model. I also changed the binning of the target variable. Instead of the previous 5 bins, when using a decision tree model one of the requirements is that the target variable is a discrete value, as either belonging to a group, or not belonging to a group. So I decided to use only two bins of equal size, such that it is divided into a bin of median house value <$25k and above. The CART model chose the ZN variable as the root, the most important one, followed by TAX and DIS
+
+```{r}
+library("C50")
+x <- testing[,c("CRIM_z","ZN_z", "INDUS_z", "NOX_z", "AGE_z", "DIS_z", "TAX_z")] 
+y <- as.factor(testing$MEDV_bin)
+c50fit <- C5.0(x, y)
+summary(c50fit)
+```
+
+Lastly, I decided to also use the C5.0 model, which is an update on the CART model. The C5.0 model determined the DIS variable as the most important variable. 
